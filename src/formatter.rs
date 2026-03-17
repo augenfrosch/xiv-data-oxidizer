@@ -17,20 +17,25 @@ struct MarkdownWriter {
 
 impl Write for MarkdownWriter {
     fn write_str(&mut self, str: &str) -> Result<(), SeStringError> {
-        self.buffer.push_str(&str);
+        self.buffer.push_str(&str.replace('*', r"\*"));
 
         Ok(())
     }
 
     // Format styled text with markdown
-    fn set_style(&mut self, style: Style, _enabled: bool) -> Result<(), SeStringError> {
+    fn set_style(&mut self, style: Style, enabled: bool) -> Result<(), SeStringError> {
         let markdown = match style {
             Style::Bold => "**",
             Style::Italic => "*",
             _ => return Ok(()),
         };
+        let idx = if enabled {
+            self.buffer.len()
+        } else {
+            self.buffer.trim_end().len()
+        };
 
-        self.buffer.push_str(markdown);
+        self.buffer.insert_str(idx, markdown);
 
         Ok(())
     }
@@ -45,8 +50,8 @@ impl Write for MarkdownWriter {
     }
 
     fn pop_color(&mut self, usage: ColorUsage) -> Result<(), SeStringError> {
-        if usage != ColorUsage::Foreground {
-            self.buffer.push_str("**");
+        if usage == ColorUsage::Foreground {
+            self.buffer.insert_str(self.buffer.trim_end().len(), "**");
         }
 
         Ok(())
