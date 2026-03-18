@@ -1,6 +1,7 @@
-use std::path::Path;
-use std::{env, error::Error};
+use std::error::Error;
+use std::path::PathBuf;
 
+use clap::Parser;
 use ironworks::{
     Ironworks,
     excel::Excel,
@@ -10,18 +11,28 @@ mod exd_schema;
 mod export;
 mod formatter;
 
-fn main() -> Result<(), Box<dyn Error>> {
-    let args: Vec<String> = env::args().collect();
+#[derive(Debug, Parser)]
+struct Args {
+    #[arg(short, long, alias = "input")]
+    input_dir: PathBuf,
+    #[arg(short, long, alias = "output", default_value = "output")]
+    output_dir: PathBuf,
+}
 
-    if args.len() < 2 {
-        panic!(
-            "You must provide a game path. For example: cargo run -- \"C:\\Program Files (x86)\\Square Enix\\FINAL FANTASY XIV - A Realm Reborn\""
-        );
+fn main() -> Result<(), Box<dyn Error>> {
+    let Args {
+        input_dir,
+        output_dir,
+    } = Args::parse();
+
+    if !input_dir.is_dir()
+        || !input_dir.join("game").is_dir()
+        || !input_dir.join("game").join("sqpack").is_dir()
+    {
+        return Err("Invalid input game directory".into());
     }
 
-    let path = Path::new(&args[1]);
-
-    let ironworks = Ironworks::new().with_resource(SqPack::new(Install::at(path)));
+    let ironworks = Ironworks::new().with_resource(SqPack::new(Install::at(&input_dir)));
     let languages = export::available_languages(&ironworks);
     let mut excel = Excel::new(ironworks);
 
@@ -35,7 +46,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         );
 
         for sheet in sheets.iter() {
-            match export::sheet(&excel, language, &sheet) {
+            match export::sheet(&excel, language, &sheet, &output_dir) {
                 Ok(_) => (),
                 // Log failed sheets and continue
                 Err(err) => eprintln!("Failed to export {}. {}", sheet, err),
