@@ -7,6 +7,7 @@ use ironworks::{
     excel::Excel,
     sqpack::{Install, SqPack},
 };
+use regex::Regex;
 mod exd_schema;
 mod export;
 mod formatter;
@@ -19,6 +20,10 @@ struct Args {
     output_dir: PathBuf,
     #[arg(short, long, default_value = "markdown")]
     string_format: StringFormat,
+    #[arg(long, alias = "include", default_value = None)]
+    include_regex: Option<Regex>,
+    #[arg(long, alias = "exclude", default_value = None)]
+    exclude_regex: Option<Regex>,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -34,6 +39,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         input_dir,
         output_dir,
         string_format,
+        include_regex,
+        exclude_regex,
     } = Args::parse();
 
     if !input_dir.is_dir()
@@ -56,7 +63,14 @@ fn main() -> Result<(), Box<dyn Error>> {
             export::language_code(&language).to_uppercase()
         );
 
-        for sheet in sheets.iter() {
+        for sheet in sheets.iter().filter(|sheet| {
+            include_regex
+                .as_ref()
+                .is_none_or(|regex| regex.is_match(&sheet))
+                && exclude_regex
+                    .as_ref()
+                    .is_none_or(|exclude| !exclude.is_match(&sheet))
+        }) {
             match export::sheet(&excel, language, &sheet, &output_dir, string_format) {
                 Ok(_) => (),
                 // Log failed sheets and continue
