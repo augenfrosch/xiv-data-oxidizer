@@ -1,6 +1,6 @@
 use csv::Writer;
 use ironworks::Ironworks;
-use ironworks::sestring::format::Input;
+use ironworks::sestring::format::{Input, PlainString};
 use std::error::Error;
 use std::fs;
 use std::path::PathBuf;
@@ -8,8 +8,9 @@ use std::path::PathBuf;
 use ironworks::excel::{Excel, Field, Language};
 use ironworks::file::exh::{ColumnDefinition, SheetKind};
 
+use crate::StringFormat;
 use crate::exd_schema::field_names;
-use crate::formatter::format_string;
+use crate::formatter::{HtmlWriter, MarkdownWriter, RawRepresentation, format_string};
 
 /// Generates a CSV extract for the given sheet and language
 pub fn sheet(
@@ -17,6 +18,7 @@ pub fn sheet(
     language: Language,
     sheet_name: &str,
     output_dir: &PathBuf,
+    string_format: StringFormat,
 ) -> Result<(), Box<dyn Error>> {
     // Set up the Input for parsing sestrings
     let input = Input::new().with_global_parameter(1, String::from("Player Player")); // Player name
@@ -63,7 +65,7 @@ pub fn sheet(
             };
             let field = row.field(&specifier)?;
 
-            data.push(field_to_string(&field, &input));
+            data.push(field_to_string(&field, &input, string_format));
         }
 
         match writer.serialize(data) {
@@ -126,9 +128,14 @@ pub fn language_code(language: &Language) -> &str {
 }
 
 /// Transforms the given field to a string
-fn field_to_string(field: &Field, input: &Input) -> String {
+fn field_to_string(field: &Field, input: &Input, string_format: StringFormat) -> String {
     return match field {
-        Field::String(value) => format_string(value, input),
+        Field::String(value) => match string_format {
+            StringFormat::Markdown => format_string(value, input, MarkdownWriter::default()),
+            StringFormat::PlainText => format_string(value, input, PlainString::new()),
+            StringFormat::Html => format_string(value, input, HtmlWriter::default()),
+            StringFormat::RawRepresentation => RawRepresentation::new(value.as_ref()).to_string(),
+        },
         Field::Bool(value) => {
             if *value {
                 String::from("True")

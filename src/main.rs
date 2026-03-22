@@ -1,7 +1,7 @@
 use std::error::Error;
 use std::path::PathBuf;
 
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use ironworks::{
     Ironworks,
     excel::Excel,
@@ -17,12 +17,23 @@ struct Args {
     input_dir: PathBuf,
     #[arg(short, long, alias = "output", default_value = "output")]
     output_dir: PathBuf,
+    #[arg(short, long, default_value = "markdown")]
+    string_format: StringFormat,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum StringFormat {
+    Markdown,
+    PlainText,
+    Html,
+    RawRepresentation,
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
     let Args {
         input_dir,
         output_dir,
+        string_format,
     } = Args::parse();
 
     if !input_dir.is_dir()
@@ -46,7 +57,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         );
 
         for sheet in sheets.iter() {
-            match export::sheet(&excel, language, &sheet, &output_dir) {
+            match export::sheet(&excel, language, &sheet, &output_dir, string_format) {
                 Ok(_) => (),
                 // Log failed sheets and continue
                 Err(err) => eprintln!("Failed to export {}. {}", sheet, err),
