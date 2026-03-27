@@ -5,7 +5,7 @@ use std::{
 
 use aho_corasick::AhoCorasick;
 use ironworks::sestring::{
-    Error as SeStringError, Expression, SeString,
+    Error as SeStringError, Expression, MacroKind, SeString,
     format::{Color, ColorUsage, Input, Style, Write, format},
 };
 
@@ -164,8 +164,11 @@ impl<'a> MacroString<'a> {
                     ))?;
                 }
                 ironworks::sestring::Payload::Macro(macro_payload) => {
-                    let kind = macro_payload.kind();
-                    write!(formatter, "<{kind:?}")?;
+                    write!(
+                        formatter,
+                        "<{}",
+                        Self::macro_kind_name(macro_payload.kind())
+                    )?;
 
                     let expressions = macro_payload.expressions();
                     let has_expressions = expressions.peekable().peek().is_some();
@@ -238,6 +241,17 @@ impl<'a> MacroString<'a> {
             }
         }
         Ok(())
+    }
+
+    fn macro_kind_name(macro_kind: MacroKind) -> String {
+        match macro_kind {
+            MacroKind::NewLine => "br".to_string(),
+            MacroKind::SoftHyphen => "-".to_string(),
+            MacroKind::NonBreakingSpace => "nbsp".to_string(),
+            MacroKind::Hyphen => "--".to_string(),
+            MacroKind::Unknown(val) => format!("payload:{:02X}", val),
+            _ => format!("{:?}", macro_kind).to_ascii_lowercase(),
+        }
     }
 
     fn characteristic_str(expression: &Expression<'_>) -> &'static str {
