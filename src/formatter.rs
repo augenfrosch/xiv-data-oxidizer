@@ -130,17 +130,17 @@ impl Write for HtmlWriter {
 // See: https://github.com/WorkingRobot/ironworks/blob/main/ironworks/src/sestring/macro_string.rs
 // TODO look at the differences to the original implementation and check if
 #[derive(Debug)]
-pub struct RawRepresentation<'a> {
+pub struct MacroString<'a> {
     sestring: SeString<'a>,
 }
 
-impl fmt::Display for RawRepresentation<'_> {
+impl fmt::Display for MacroString<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         Self::fmt_sestring(&self.sestring, f)
     }
 }
 
-impl<'a> RawRepresentation<'a> {
+impl<'a> MacroString<'a> {
     pub fn new(sestring: SeString<'a>) -> Self {
         Self { sestring }
     }
@@ -154,7 +154,7 @@ impl<'a> RawRepresentation<'a> {
                 }
                 ironworks::sestring::Payload::Macro(macro_payload) => {
                     let kind = macro_payload.kind();
-                    write!(formatter, "{{|{kind:?}")?;
+                    write!(formatter, "<{kind:?}")?;
 
                     let expressions = macro_payload.expressions();
                     let has_expressions = expressions.peekable().peek().is_some();
@@ -170,7 +170,7 @@ impl<'a> RawRepresentation<'a> {
                         formatter.write_str(")")?;
                     }
 
-                    formatter.write_str("|}")?;
+                    formatter.write_str(">")?;
                 }
             }
         }

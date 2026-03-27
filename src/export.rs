@@ -10,7 +10,7 @@ use ironworks::file::exh::{ColumnDefinition, SheetKind};
 
 use crate::StringFormat;
 use crate::exd_schema::field_names;
-use crate::formatter::{HtmlWriter, MarkdownWriter, RawRepresentation, format_string};
+use crate::formatter::{HtmlWriter, MacroString, MarkdownWriter, format_string};
 
 /// Generates a CSV extract for the given sheet and language
 pub fn sheet(
@@ -134,7 +134,7 @@ fn field_to_string(field: &Field, input: &Input, string_format: StringFormat) ->
             StringFormat::Markdown => format_string(value, input, MarkdownWriter::default()),
             StringFormat::PlainText => format_string(value, input, PlainString::new()),
             StringFormat::Html => format_string(value, input, HtmlWriter::default()),
-            StringFormat::RawRepresentation => RawRepresentation::new(value.as_ref()).to_string(),
+            StringFormat::MacroString => MacroString::new(value.as_ref()).to_string(),
         },
         Field::Bool(value) => {
             if *value {

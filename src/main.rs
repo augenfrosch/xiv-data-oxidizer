@@ -31,7 +31,7 @@ enum StringFormat {
     Markdown,
     PlainText,
     Html,
-    RawRepresentation,
+    MacroString,
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
