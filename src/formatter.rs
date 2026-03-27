@@ -1,5 +1,9 @@
-use std::fmt::{self, Display};
+use std::{
+    fmt::{self, Display},
+    sync::LazyLock,
+};
 
+use aho_corasick::AhoCorasick;
 use ironworks::sestring::{
     Error as SeStringError, Expression, SeString,
     format::{Color, ColorUsage, Input, Style, Write, format},
@@ -136,7 +140,7 @@ pub struct MacroString<'a> {
 
 impl fmt::Display for MacroString<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        Self::fmt_sestring(&self.sestring, f)
+        Self::fmt_sestring(&self.sestring, f, false)
     }
 }
 
@@ -145,12 +149,19 @@ impl<'a> MacroString<'a> {
         Self { sestring }
     }
 
-    fn fmt_sestring(sestring: &SeString, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt_sestring(
+        sestring: &SeString,
+        formatter: &mut fmt::Formatter<'_>,
+        inside_macro: bool,
+    ) -> fmt::Result {
         for payload in sestring.payloads() {
             let payload = payload.expect("Invalid macro");
             match payload {
                 ironworks::sestring::Payload::Text(text_payload) => {
-                    formatter.write_str(text_payload.as_utf8().expect("Invalid text"))?;
+                    formatter.write_str(&Self::escape_text(
+                        text_payload.as_utf8().expect("Invalid text"),
+                        inside_macro,
+                    ))?;
                 }
                 ironworks::sestring::Payload::Macro(macro_payload) => {
                     let kind = macro_payload.kind();
@@ -187,7 +198,7 @@ impl<'a> MacroString<'a> {
                 value.fmt(formatter)?;
             }
             Expression::SeString(sestring) => {
-                Self::fmt_sestring(sestring, formatter)?;
+                Self::fmt_sestring(sestring, formatter, true)?;
             }
             Expression::Millisecond
             | Expression::Second
@@ -222,7 +233,9 @@ impl<'a> MacroString<'a> {
             Expression::Unknown(value) => {
                 write!(formatter, "unknown({value})")?;
             }
-            _ => unreachable!(),
+            _ => {
+                formatter.write_str("unknown(})")?;
+            }
         }
         Ok(())
     }
@@ -250,8 +263,34 @@ impl<'a> MacroString<'a> {
             Expression::Lt(_, _) => "<",
             Expression::Eq(_, _) => "==",
             Expression::Ne(_, _) => "!=",
-            Expression::Unknown(_) => "unknown",
-            _ => unreachable!(),
+            Expression::Unknown(_) | _ => "unknown",
         }
+    }
+
+    fn escape_text(text: &str, inside_macro: bool) -> String {
+        static MACRO_TEXT_ESCAPES: LazyLock<AhoCorasick> = LazyLock::new(|| {
+            // TODO test if/how the characteristic strings for e.g. `t_sec` are escaped
+            AhoCorasick::new(["\\", "<", ">", "[", "]", "(", ")", ","])
+                .expect("Aho-Corasick automaton construction should not fail")
+        });
+        static TEXT_ESCAPES: LazyLock<AhoCorasick> = LazyLock::new(|| {
+            // TODO test if/how the characteristic strings for e.g. `t_sec` are escaped
+            AhoCorasick::new(["\\", "<", ">"])
+                .expect("Aho-Corasick automaton construction should not fail")
+        });
+
+        let mut escaped = String::with_capacity(text.len());
+        let aho_corasick = if inside_macro {
+            &*MACRO_TEXT_ESCAPES
+        } else {
+            &*TEXT_ESCAPES
+        };
+
+        aho_corasick.replace_all_with(text, &mut escaped, |_, match_str, dst| {
+            dst.push_str("\\");
+            dst.push_str(match_str);
+            true
+        });
+        escaped
     }
 }
