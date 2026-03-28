@@ -88,8 +88,16 @@ impl From<HtmlWriter> for String {
 
 impl Write for HtmlWriter {
     fn write_str(&mut self, str: &str) -> Result<(), SeStringError> {
-        // TODO check what else has to be replaces and/or escaped to be valid HTML text; boilmaster escapes a few chars
-        self.buffer.push_str(&str.replace('\n', "<br>"));
+        static TEXT_ESCAPES: LazyLock<AhoCorasick> = LazyLock::new(|| {
+            AhoCorasick::new(["\n", "&", "<", ">", "\"", "\'", "\u{00A0}"])
+                .expect("Aho-Corasick automaton construction should not fail")
+        });
+        self.buffer.push_str(&TEXT_ESCAPES.replace_all(
+            str,
+            &[
+                "<br>", "&amp;", "&lt;", "&gt;", "&quot;", "&apos;", "&nbsp;",
+            ],
+        ));
 
         Ok(())
     }
