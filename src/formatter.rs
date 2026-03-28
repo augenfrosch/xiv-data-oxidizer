@@ -1,11 +1,12 @@
 use std::{
-    fmt::{self, Display},
+    error::Error,
+    fmt::{Display, Error as FormatError, Formatter},
     sync::LazyLock,
 };
 
 use aho_corasick::AhoCorasick;
 use ironworks::sestring::{
-    Error as SeStringError, Expression, MacroKind, SeString,
+    Error as SeStringError, Expression, MacroKind, SeString, TextPayload,
     format::{Color, ColorUsage, Input, Style, Write, format},
 };
 
@@ -130,17 +131,47 @@ impl Write for HtmlWriter {
     }
 }
 
-// Directly based on what Asriel does for her ironworks fork (without modifying ironworks directly)
+// Directly based on what Asriel does for her ironworks fork.
+// Effectively everything besides a simpler escaping function is the same as the original,
+// with only minor changes that are necessary since this isn't modifying ironworks directly.
 // See: https://github.com/WorkingRobot/ironworks/blob/main/ironworks/src/sestring/macro_string.rs
-// TODO look at the differences to the original implementation and check if
 #[derive(Debug)]
 pub struct MacroString<'a> {
     sestring: SeString<'a>,
 }
 
-impl fmt::Display for MacroString<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        Self::fmt_sestring(&self.sestring, f, false)
+#[derive(Debug)]
+enum MacroStringError {
+    SeStringError(SeStringError),
+    FormatError(FormatError),
+}
+
+impl From<SeStringError> for MacroStringError {
+    fn from(error: SeStringError) -> Self {
+        Self::SeStringError(error)
+    }
+}
+
+impl From<FormatError> for MacroStringError {
+    fn from(error: FormatError) -> Self {
+        Self::FormatError(error)
+    }
+}
+
+impl Display for MacroStringError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            MacroStringError::SeStringError(error) => write!(f, "SeString error: {}", error),
+            MacroStringError::FormatError(error) => write!(f, "Formating error: {}", error),
+        }
+    }
+}
+
+impl Error for MacroStringError {}
+
+impl Display for MacroString<'_> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        Self::fmt_sestring(&self.sestring, f, false).map_err(|_| FormatError)
     }
 }
 
@@ -151,24 +182,18 @@ impl<'a> MacroString<'a> {
 
     fn fmt_sestring(
         sestring: &SeString,
-        formatter: &mut fmt::Formatter<'_>,
+        formatter: &mut Formatter<'_>,
         inside_macro: bool,
-    ) -> fmt::Result {
+    ) -> Result<(), MacroStringError> {
         for payload in sestring.payloads() {
-            let payload = payload.expect("Invalid macro");
-            match payload {
+            match payload? {
                 ironworks::sestring::Payload::Text(text_payload) => {
-                    formatter.write_str(&Self::escape_text(
-                        text_payload.as_utf8().expect("Invalid text"),
-                        inside_macro,
-                    ))?;
+                    formatter
+                        .write_str(&Self::escape_text_payload(&text_payload, inside_macro)?)?;
                 }
                 ironworks::sestring::Payload::Macro(macro_payload) => {
-                    write!(
-                        formatter,
-                        "<{}",
-                        Self::macro_kind_name(macro_payload.kind())
-                    )?;
+                    formatter.write_str("<")?;
+                    formatter.write_str(&Self::macro_kind_name(macro_payload.kind()))?;
 
                     let expressions = macro_payload.expressions();
                     let has_expressions = expressions.peekable().peek().is_some();
@@ -194,8 +219,8 @@ impl<'a> MacroString<'a> {
 
     fn fmt_expression(
         expression: &Expression<'_>,
-        formatter: &mut std::fmt::Formatter<'_>,
-    ) -> std::fmt::Result {
+        formatter: &mut Formatter<'_>,
+    ) -> Result<(), MacroStringError> {
         match expression {
             Expression::U32(value) => {
                 value.fmt(formatter)?;
@@ -237,7 +262,7 @@ impl<'a> MacroString<'a> {
                 write!(formatter, "unknown({value})")?;
             }
             _ => {
-                formatter.write_str("unknown(})")?;
+                formatter.write_str("unknown")?;
             }
         }
         Ok(())
@@ -281,18 +306,22 @@ impl<'a> MacroString<'a> {
         }
     }
 
-    fn escape_text(text: &str, inside_macro: bool) -> String {
+    fn escape_text_payload(
+        text_payload: &TextPayload,
+        inside_macro: bool,
+    ) -> Result<String, SeStringError> {
         static MACRO_TEXT_ESCAPES: LazyLock<AhoCorasick> = LazyLock::new(|| {
             // TODO test if/how the characteristic strings for e.g. `t_sec` are escaped
             AhoCorasick::new(["\\", "<", ">", "[", "]", "(", ")", ","])
                 .expect("Aho-Corasick automaton construction should not fail")
         });
         static TEXT_ESCAPES: LazyLock<AhoCorasick> = LazyLock::new(|| {
-            // TODO test if/how the characteristic strings for e.g. `t_sec` are escaped
+            // See above
             AhoCorasick::new(["\\", "<", ">"])
                 .expect("Aho-Corasick automaton construction should not fail")
         });
 
+        let text = text_payload.as_utf8()?;
         let mut escaped = String::with_capacity(text.len());
         let aho_corasick = if inside_macro {
             &*MACRO_TEXT_ESCAPES
@@ -305,6 +334,6 @@ impl<'a> MacroString<'a> {
             dst.push_str(match_str);
             true
         });
-        escaped
+        Ok(escaped)
     }
 }
