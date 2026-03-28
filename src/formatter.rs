@@ -113,9 +113,14 @@ impl Write for HtmlWriter {
         }
 
         let Color { r, g, b, a } = color;
-        self.buffer.push_str(&format!(
-            r#"<span style="color:#{r:02x}{g:02x}{b:02x}{a:02x}">"#
-        ));
+        match a {
+            0xff => self
+                .buffer
+                .push_str(&format!(r#"<span style="color:#{r:02x}{g:02x}{b:02x}">"#)),
+            _ => self.buffer.push_str(&format!(
+                r#"<span style="color:#{r:02x}{g:02x}{b:02x}{a:02x}">"#
+            )),
+        }
 
         Ok(())
     }
