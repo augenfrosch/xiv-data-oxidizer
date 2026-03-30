@@ -14,10 +14,17 @@ mod formatter;
 
 #[derive(Debug, Parser)]
 struct Args {
+    /// Set the input directory containing the game install.
+    ///
+    /// The directory must be the base directory for the game install, i.e., it must contain the `game` subdirectory.
     #[arg(short, long = "input", value_name = "PATH")]
     input_dir: PathBuf,
+    /// Set the output directory.
+    ///
+    /// Directories are created if they are missing. The default creates a new `output` directory in the current working directory.
     #[arg(short, long = "output", value_name = "PATH", default_value = "output")]
     output_dir: PathBuf,
+    /// Set the output format used for SeStrings.
     #[arg(short, long, default_value = "markdown")]
     string_format: StringFormat,
     /// Set the color scheme used when formatting Strings as HTML.
@@ -25,8 +32,10 @@ struct Args {
     /// The argument is ignored for other formats as they don't generate color specific output.
     #[arg(short, long, default_value = "dark")]
     color_scheme: ColorScheme,
+    /// Include sheets that matching the regex. If ommited, all sheets are included.
     #[arg(long = "include", value_name = "REGEX", default_value = None)]
     include_regex: Option<Regex>,
+    /// Exclude sheets that matching the regex. If ommited, no sheets are excluded.
     #[arg(long = "exclude", value_name = "REGEX", default_value = None)]
     exclude_regex: Option<Regex>,
 }
