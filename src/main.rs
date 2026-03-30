@@ -20,13 +20,18 @@ struct Args {
     output_dir: PathBuf,
     #[arg(short, long, default_value = "markdown")]
     string_format: StringFormat,
+    /// Set the color scheme used when formatting Strings as HTML.
+    ///
+    /// The argument is ignored for other formats as they don't generate color specific output.
+    #[arg(short, long, default_value = "dark")]
+    color_scheme: ColorScheme,
     #[arg(long = "include", value_name = "REGEX", default_value = None)]
     include_regex: Option<Regex>,
     #[arg(long = "exclude", value_name = "REGEX", default_value = None)]
     exclude_regex: Option<Regex>,
 }
 
-#[derive(Debug, Clone, Copy, ValueEnum)]
+#[derive(Debug, Clone, Copy, PartialEq, ValueEnum)]
 enum StringFormat {
     Markdown,
     PlainText,
@@ -34,11 +39,23 @@ enum StringFormat {
     MacroString,
 }
 
+#[derive(Debug, Clone, Copy, ValueEnum)]
+#[repr(u8)]
+enum ColorScheme {
+    Dark = 0,
+    Light = 1,
+    ClassicFf = 2,
+    ClearBlue = 3,
+    ClearWhite = 4,
+    ClearGreen = 5,
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
     let Args {
         input_dir,
         output_dir,
         string_format,
+        color_scheme,
         include_regex,
         exclude_regex,
     } = Args::parse();
@@ -53,6 +70,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let ironworks = Ironworks::new().with_resource(SqPack::new(Install::at(&input_dir)));
     let languages = export::available_languages(&ironworks);
     let mut excel = Excel::new(ironworks);
+    let input = export::build_input(&excel, color_scheme, string_format)?;
 
     for language in languages {
         excel.set_default_language(language);
@@ -71,7 +89,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                     .as_ref()
                     .is_none_or(|exclude| !exclude.is_match(&sheet))
         }) {
-            match export::sheet(&excel, language, &sheet, &output_dir, string_format) {
+            match export::sheet(&excel, language, &sheet, &input, &output_dir, string_format) {
                 Ok(_) => (),
                 // Log failed sheets and continue
                 Err(err) => eprintln!("Failed to export {}. {}", sheet, err),

@@ -1,6 +1,6 @@
 use csv::Writer;
 use ironworks::Ironworks;
-use ironworks::sestring::format::{Input, PlainString};
+use ironworks::sestring::format::{Color, ColorUsage, Input, PlainString};
 use std::error::Error;
 use std::fs;
 use std::path::PathBuf;
@@ -8,21 +8,46 @@ use std::path::PathBuf;
 use ironworks::excel::{Excel, Field, Language};
 use ironworks::file::exh::{ColumnDefinition, SheetKind};
 
-use crate::StringFormat;
 use crate::exd_schema::field_names;
 use crate::formatter::{HtmlWriter, MacroString, MarkdownWriter, format_string};
+use crate::{ColorScheme, StringFormat};
+
+pub fn build_input(
+    excel: &Excel,
+    color_scheme: ColorScheme,
+    string_format: StringFormat,
+) -> Result<Input, Box<dyn Error>> {
+    let mut input = Input::new().with_global_parameter(1, String::from("Player Player")); // Player name
+
+    // Skip loading colors for all formats aside from HTML since they aren't used otherwise
+    if string_format == StringFormat::Html {
+        let sheet = excel.sheet("UIColor")?;
+
+        for row in sheet.into_iter() {
+            let row = row?;
+
+            let [r, g, b, a] = row
+                .field(color_scheme as usize)?
+                .into_u32()
+                .map_err(|_| "Failed to read UIColor sheet field")?
+                .to_be_bytes();
+
+            input.add_color(ColorUsage::Foreground, row.row_id(), Color { r, g, b, a });
+        }
+    }
+
+    Ok(input)
+}
 
 /// Generates a CSV extract for the given sheet and language
 pub fn sheet(
     excel: &Excel,
     language: Language,
     sheet_name: &str,
+    input: &Input,
     output_dir: &PathBuf,
     string_format: StringFormat,
 ) -> Result<(), Box<dyn Error>> {
-    // Set up the Input for parsing sestrings
-    let input = Input::new().with_global_parameter(1, String::from("Player Player")); // Player name
-
     // Fetch the sheet data
     let sheet = excel.sheet(sheet_name)?;
     let has_subrows = sheet.kind()? == SheetKind::Subrows;
@@ -33,7 +58,9 @@ pub fn sheet(
 
     // Set up the output file
     let language_code = language_code(&language);
-    let path = output_dir.join(format!("{}/{}.csv", language_code, sheet_name));
+    let path = output_dir
+        .join(language_code)
+        .join(format!("{}.csv", sheet_name));
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
