@@ -14,15 +14,15 @@ mod formatter;
 
 #[derive(Debug, Parser)]
 struct Args {
-    #[arg(short, long, alias = "input")]
+    #[arg(short, long = "input", value_name = "PATH")]
     input_dir: PathBuf,
-    #[arg(short, long, alias = "output", default_value = "output")]
+    #[arg(short, long = "output", value_name = "PATH", default_value = "output")]
     output_dir: PathBuf,
     #[arg(short, long, default_value = "markdown")]
     string_format: StringFormat,
-    #[arg(long, alias = "include", default_value = None)]
+    #[arg(long = "include", value_name = "REGEX", default_value = None)]
     include_regex: Option<Regex>,
-    #[arg(long, alias = "exclude", default_value = None)]
+    #[arg(long = "exclude", value_name = "REGEX", default_value = None)]
     exclude_regex: Option<Regex>,
 }
 
