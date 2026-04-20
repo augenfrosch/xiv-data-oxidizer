@@ -306,7 +306,7 @@ impl<'a> MacroString<'a> {
             Expression::Year => "t_year",
             Expression::StackColor => "stackcolor",
             Expression::LocalNumber(_) => "lnum",
-            Expression::GlobalNumber(_) => "gnun",
+            Expression::GlobalNumber(_) => "gnum",
             Expression::LocalString(_) => "lstr",
             Expression::GlobalString(_) => "gstr",
             Expression::Ge(_, _) => ">=",
